@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Full-bleed background for maskable safe zone -->
+  <rect width="512" height="512" fill="#2563eb"/>
+  <!-- Bars sit within the central 80% safe zone (~51px inset) -->
+  <g fill="#ffffff">
+    <rect x="146" y="300" width="48" height="96"  rx="14"/>
+    <rect x="232" y="244" width="48" height="152" rx="14"/>
+    <rect x="318" y="172" width="48" height="224" rx="14"/>
+  </g>
+  <!-- Small star accent to echo the rating system -->
+  <path fill="#f5a623" d="M170 132l11.8 23.9 26.4 3.8-19.1 18.6 4.5 26.3L170 213l-23.6 12.4 4.5-26.3-19.1-18.6 26.4-3.8z"/>
+</svg>

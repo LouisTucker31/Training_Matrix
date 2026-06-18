@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+
+  <title>Training Matrix</title>
+  <meta name="description" content="An adaptive training composition tool for runners. See which physiological qualities your programme covers, and what to add next." />
+  <meta name="theme-color" content="#ffffff" />
+
+  <!-- Apple PWA -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Training Matrix" />
+  <link rel="apple-touch-icon" href="./icon.svg" />
+
+  <!-- PWA manifest + icon -->
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="appbar">
+      <div class="brand">
+        <svg class="brand__mark" viewBox="0 0 32 32" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+          <rect x="2" y="2" width="28" height="28" rx="8" fill="#2563eb"/>
+          <rect x="8"  y="17" width="4" height="7"  rx="1.5" fill="#ffffff"/>
+          <rect x="14" y="13" width="4" height="11" rx="1.5" fill="#ffffff"/>
+          <rect x="20" y="8"  width="4" height="16" rx="1.5" fill="#ffffff"/>
+        </svg>
+        <span class="brand__name">Training Matrix</span>
+      </div>
+      <nav class="stepper" id="stepper" aria-label="Progress"></nav>
+    </header>
+
+    <main class="screen" id="screen" aria-live="polite"></main>
+
+    <div class="actionbar" id="actionbar"></div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
