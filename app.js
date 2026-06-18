@@ -27,9 +27,22 @@ const ADAPTATIONS = [
 /* ------------------------------------------------------------
    2. SCORING CONSTANTS
    ------------------------------------------------------------ */
-const POINTS_PER_STAR = 10;   // 1 star of goal need = 10 target points
-const WORKOUT_BONUS = 3;      // each selected workout adds +3 to its style's primary adaptation
+const POINTS_PER_STAR = 16;   // 1 star of goal need = 16 target points
+const WORKOUT_BONUS = 4;      // each selected workout adds +4 to its style's primary adaptation
 const MAX_COVERAGE = 100;     // per-adaptation coverage is capped here
+
+/* Diminishing returns. Stacking several styles on one adaptation
+   shouldn't pile up linearly (that caused everything to slam to
+   100%). The first band of points counts fully; points beyond the
+   knee count for less. This keeps a single well-aimed style strong
+   while preventing 3-4 overlapping styles from saturating. */
+const STACK_KNEE = 34;        // points up to here count fully
+const STACK_TAIL = 0.7;       // points beyond the knee count at 70%
+
+function softStack(points) {
+  if (points <= STACK_KNEE) return points;
+  return STACK_KNEE + (points - STACK_KNEE) * STACK_TAIL;
+}
 
 /* ------------------------------------------------------------
    3. GOALS
@@ -294,9 +307,9 @@ const GOAL_STYLE_SUITABILITY = {
     'long-runs': 5,
     'strength': 4,
     'recovery-runs': 4,
+    'race-pace': 4,
     'hill-work': 3,
-    'race-pace': 3,
-    'threshold': 2,
+    'threshold': 3,
     'speed-strides': 1,
     'vo2-intervals': 1
   },
@@ -315,9 +328,9 @@ const GOAL_STYLE_SUITABILITY = {
     'vo2-intervals': 5,
     'speed-strides': 4,
     'threshold': 4,
+    'easy-aerobic': 4,
+    'recovery-runs': 4,
     'hill-work': 3,
-    'easy-aerobic': 3,
-    'recovery-runs': 2,
     'race-pace': 2,
     'long-runs': 2,
     'strength': 1
@@ -385,10 +398,13 @@ function computeProfile(goalId, selectedStyleIds, selectedWorkouts) {
   });
 
   // 4. Convert to coverage % per required adaptation, capped.
+  //    Apply diminishing-returns curve so overlapping styles don't
+  //    saturate every adaptation to 100%.
   const coverage = {};
   requiredAdaptations.forEach(function (a) {
     const target = targets[a];
-    let pct = target > 0 ? (earned[a] / target) * 100 : 0;
+    const effective = softStack(earned[a]);
+    let pct = target > 0 ? (effective / target) * 100 : 0;
     if (pct > MAX_COVERAGE) pct = MAX_COVERAGE;
     coverage[a] = Math.round(pct);
   });
