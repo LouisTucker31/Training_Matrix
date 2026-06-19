@@ -802,6 +802,11 @@ function renderProfileStep() {
   }
   frag.appendChild(rec);
 
+  // Build-a-plan entry (optional next step). Defined in plan.js.
+  if (typeof renderBuildPlanButton === 'function') {
+    renderBuildPlanButton(frag);
+  }
+
   // Restart link.
   const restart = el('button', 'btn btn--ghost restart', 'Start over');
   restart.type = 'button';
@@ -810,6 +815,11 @@ function renderProfileStep() {
     render();
   });
   frag.appendChild(restart);
+
+  // Link to saved plans, if any exist. Defined in plan.js.
+  if (typeof renderViewPlansLink === 'function') {
+    renderViewPlansLink(frag);
+  }
 
   clear(screen);
   screen.appendChild(frag);
@@ -927,6 +937,11 @@ function goToStep(n) {
    14. MASTER RENDER
    ------------------------------------------------------------ */
 function render() {
+  // Plan module can take over the whole view (setup, plan, list).
+  // It sets planState.view; when active, it renders and we stop.
+  if (typeof renderPlanView === 'function' && renderPlanView()) {
+    return;
+  }
   renderStepper();
   if (state.step === 1) renderGoalStep();
   else if (state.step === 2) renderStyleStep();
