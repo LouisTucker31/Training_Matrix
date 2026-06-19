@@ -700,18 +700,24 @@ button { font-family: inherit; cursor: pointer; }
   color: #fff;
 }
 
-/* Number stepper row */
+/* Number stepper row - single balanced control */
 .stepperrow {
   display: flex;
   align-items: center;
-  gap: var(--s4);
+  justify-content: space-between;
+  gap: var(--s2);
+  background: var(--surface);
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--r-md);
+  padding: 8px;
 }
 .stepperrow__btn {
-  width: 52px; height: 52px;
-  border-radius: var(--r-md);
-  border: 1.5px solid var(--line-strong);
-  background: var(--surface);
-  font-size: 24px;
+  width: 48px; height: 48px;
+  flex: 0 0 auto;
+  border-radius: var(--r-sm);
+  border: none;
+  background: var(--surface-soft);
+  font-size: 26px;
   font-weight: 600;
   color: var(--blue);
   display: grid;
@@ -719,14 +725,23 @@ button { font-family: inherit; cursor: pointer; }
   transition: background 150ms ease, transform 120ms ease;
 }
 .stepperrow__btn:active { transform: scale(0.95); }
-.stepperrow__btn:hover { background: var(--surface-soft); }
+.stepperrow__btn:hover { background: var(--line); }
 .stepperrow__val {
+  flex: 1 1 auto;
   font-family: var(--font-head);
   font-weight: 700;
-  font-size: 34px;
+  font-size: 30px;
   color: var(--ink);
-  min-width: 56px;
   text-align: center;
+}
+.stepperrow__val small {
+  display: block;
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--ink-faint);
+  letter-spacing: 0.3px;
+  margin-top: -2px;
 }
 
 /* Choice row (sessions per week) */
@@ -782,28 +797,14 @@ button { font-family: inherit; cursor: pointer; }
 }
 .phaselegend__weeks { font-size: 12px; color: var(--ink-soft); }
 
-/* Phase header (between week groups) */
-.phasehead {
-  border-left: 4px solid var(--phase, var(--blue));
-  background: var(--phase-soft, var(--surface-soft));
-  border-radius: var(--r-sm);
-  padding: var(--s3) var(--s4);
-  margin: var(--s5) 0 var(--s3);
-}
-.phasehead__name {
-  display: block;
-  font-family: var(--font-head);
-  font-weight: 600;
-  font-size: 19px;
-  letter-spacing: 0.2px;
-  color: var(--ink);
-}
-.phasehead__note { font-size: 13px; color: var(--ink-soft); }
+/* (Old standalone phase banner removed; phase header now lives inside
+   the first week card of each phase via .weekcard__phase.) */
 
 /* Week cards */
 .weekcard {
   background: var(--surface);
   border: 1.5px solid var(--line);
+  border-left: 5px solid var(--phase, var(--line));
   border-radius: var(--r-lg);
   padding: var(--s4);
   margin-bottom: var(--s3);
@@ -811,8 +812,33 @@ button { font-family: inherit; cursor: pointer; }
 }
 .weekcard.is-down {
   background: var(--surface-soft);
-  border-style: dashed;
+  border-top-style: dashed;
+  border-right-style: dashed;
+  border-bottom-style: dashed;
 }
+/* First card of each phase carries a slim coloured header inside it. */
+.weekcard.is-phasestart {
+  margin-top: var(--s5);
+}
+.weekcard__phase {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--phase-soft, var(--surface-soft));
+  border-radius: var(--r-sm);
+  padding: var(--s3) var(--s4);
+  margin: calc(-1 * var(--s4) + 2px) calc(-1 * var(--s4) + 2px) var(--s4);
+  border-bottom: 2px solid var(--phase, var(--line));
+}
+.weekcard__phasename {
+  font-family: var(--font-head);
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 0.2px;
+  color: var(--ink);
+  text-transform: none;
+}
+.weekcard__phasenote { font-size: 13px; color: var(--ink-soft); line-height: 1.4; }
 .weekcard__head {
   display: flex;
   align-items: center;

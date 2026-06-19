@@ -86,7 +86,7 @@ const WORKOUT_META = {
   'Back-to-Back Long Runs':   { base: 'long both days', steps: ['2 x 60 min', '2 x 75 min', '2 x 90 min'], unit: 'on consecutive days', load: 7 },
   // threshold
   '20-Minute Tempo':     { base: '20 min tempo', steps: ['15 min', '20 min', '25 min', '30 min'], unit: 'continuous tempo', load: 4 },
-  '3 x 10 Min Threshold':{ base: '3 x 8 min', steps: ['3 x 8 min', '3 x 10 min', '4 x 10 min', '4 x 12 min'], unit: 'at threshold', load: 5 },
+  '3 x 10 Min Threshold':{ base: '3 x 8 min', steps: ['3 x 8 min', '4 x 8 min', '5 x 8 min', '6 x 8 min'], unit: 'at threshold', load: 5 },
   '2 x 20 Min Threshold':{ base: '2 x 15 min', steps: ['2 x 15 min', '2 x 18 min', '2 x 20 min'], unit: 'at threshold', load: 6 },
   '5 x 2km Threshold':   { base: '4 x 2km', steps: ['4 x 2km', '5 x 2km', '6 x 2km'], unit: 'at threshold', load: 6 },
   // vo2-intervals
@@ -741,11 +741,11 @@ function renderPlanSetup() {
     minus.type = 'button'; minus.setAttribute('aria-label', 'Fewer weeks');
     minus.addEventListener('click', function () { d.weeks = Math.max(2, d.weeks - 1); renderPlanSetup(); });
     var val = el('span', 'stepperrow__val', String(d.weeks));
+    val.appendChild(el('small', null, 'weeks'));
     var plus = el('button', 'stepperrow__btn', '+');
     plus.type = 'button'; plus.setAttribute('aria-label', 'More weeks');
     plus.addEventListener('click', function () { d.weeks = Math.min(36, d.weeks + 1); renderPlanSetup(); });
     row.appendChild(minus); row.appendChild(val); row.appendChild(plus);
-    row.appendChild(el('span', 'field__hint', 'weeks'));
     lenField.appendChild(row);
   } else {
     var dateInput = document.createElement('input');
@@ -851,16 +851,23 @@ function renderPlanScreen() {
 
   var lastPhase = null;
   plan.planWeeks.forEach(function (wk, wi) {
-    if (wk.phase !== lastPhase) {
-      var ph = PHASES.find(function (p) { return p.id === wk.phase; });
-      var phHead = el('div', 'phasehead phase--' + wk.phase);
-      phHead.appendChild(el('span', 'phasehead__name', ph ? ph.name : wk.phase));
-      phHead.appendChild(el('span', 'phasehead__note', ph ? ph.purpose : ''));
-      frag.appendChild(phHead);
-      lastPhase = wk.phase;
+    var ph = PHASES.find(function (p) { return p.id === wk.phase; });
+    var isFirstOfPhase = wk.phase !== lastPhase;
+    lastPhase = wk.phase;
+
+    var card = el('div', 'weekcard phase--' + wk.phase +
+      (wk.isDownWeek ? ' is-down' : '') +
+      (isFirstOfPhase ? ' is-phasestart' : ''));
+
+    // On the first week of a phase, show a slim coloured phase header
+    // inside the card (replaces the old standalone banner).
+    if (isFirstOfPhase) {
+      var pHead = el('div', 'weekcard__phase');
+      pHead.appendChild(el('span', 'weekcard__phasename', ph ? ph.name : wk.phase));
+      pHead.appendChild(el('span', 'weekcard__phasenote', ph ? ph.purpose : ''));
+      card.appendChild(pHead);
     }
 
-    var card = el('div', 'weekcard phase--' + wk.phase + (wk.isDownWeek ? ' is-down' : ''));
     var wh = el('div', 'weekcard__head');
     wh.appendChild(el('span', 'weekcard__title', 'Week ' + wk.week));
     if (wk.isDownWeek) wh.appendChild(el('span', 'weekcard__tag', 'Recovery'));
