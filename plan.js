@@ -201,7 +201,7 @@ function isHard(id) {
 /* Max HARD quality sessions a phase schedules per week, regardless of
    how many hard styles the user picked. This is what makes Base feel
    like base and stops a 5k plan front-loading VO2 work. */
-const PHASE_HARD_CAP = { base: 1, build: 2, specific: 3, taper: 2 };
+const PHASE_HARD_CAP = { base: 1, build: 2, specific: 2, taper: 2 };
 
 /* ------------------------------------------------------------
    SESSION DISTRIBUTION
@@ -210,10 +210,12 @@ const PHASE_HARD_CAP = { base: 1, build: 2, specific: 3, taper: 2 };
    suitability, and a hard-session cap. Returns style ids of length
    = sessions (styles may repeat when sessions exceed distinct styles).
    ------------------------------------------------------------ */
-function chooseStylesForWeek(phaseId, availableStyleIds, suitability, sessions, weekSeed) {
+function chooseStylesForWeek(phaseId, availableStyleIds, suitability, sessions, weekSeed, hardCapOverride) {
   const phase = PHASES.find(function (p) { return p.id === phaseId; });
   const emphasis = phase ? phase.emphasis : {};
-  const hardCap = PHASE_HARD_CAP[phaseId] !== undefined ? PHASE_HARD_CAP[phaseId] : 2;
+  const hardCap = (hardCapOverride !== null && hardCapOverride !== undefined)
+    ? hardCapOverride
+    : (PHASE_HARD_CAP[phaseId] !== undefined ? PHASE_HARD_CAP[phaseId] : 2);
 
   const scored = availableStyleIds.map(function (id) {
     const e = emphasis[id] !== undefined ? emphasis[id] : 1;
@@ -278,24 +280,19 @@ function chooseStylesForWeek(phaseId, availableStyleIds, suitability, sessions, 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 /* Assign each session a specific weekday. Strategy:
-   - The long run goes on Sunday (or Saturday if Sunday taken).
-   - Hard sessions are spread onto Tue / Thu / Sat so no two hard days
-     sit back to back.
-   - Easy / moderate sessions fill the remaining preferred days.
+   - Start from a day template that is already well-spaced for the
+     given number of sessions (never clusters consecutive days until
+     we run out of room at 6-7 sessions).
+   - Put the long run on Sunday.
+   - Spread hard sessions across the week on a maximally-spaced set
+     (e.g. Mon/Wed/Fri) so two hard days never sit back to back and
+     none sits the day before the long run.
+   - Easy/moderate fill the remaining gaps.
    Returns an array (parallel to sessionStyleIds) of day indices. */
 function placeDays(sessionStyleIds) {
   const n = sessionStyleIds.length;
-  const assigned = new Array(n).fill(null);
-  const taken = {}; // dayIndex -> true
+  if (n === 0) return [];
 
-  function take(day) { taken[day] = true; return day; }
-  function free(day) { return !taken[day]; }
-  function firstFree(order) {
-    for (let i = 0; i < order.length; i++) if (free(order[i])) return order[i];
-    return null;
-  }
-
-  // Index lists by category.
   const longIdx = [];
   const hardIdx = [];
   const easyIdx = [];
@@ -306,31 +303,147 @@ function placeDays(sessionStyleIds) {
     else easyIdx.push(i);
   });
 
-  // 1. Long run -> Sunday (6), else Saturday (5).
+  const assigned = new Array(n).fill(null);
+  const used = {}; // dayIndex -> true
+  function claim(day, sessionIndex) { assigned[sessionIndex] = day; used[day] = true; }
+  function isFree(day) { return !used[day]; }
+
+  // Track the days used by hard/long sessions so we can keep new hard
+  // days away from them.
+  const quietGuard = []; // days that should ideally not be adjacent to a new hard day
+
+  // 1. Long run -> Sunday (6), else Saturday.
   longIdx.forEach(function (i) {
-    const d = free(6) ? 6 : (free(5) ? 5 : firstFree([6, 5, 4, 3, 2, 1, 0]));
-    if (d !== null) assigned[i] = take(d);
+    var day = isFree(6) ? 6 : (isFree(5) ? 5 : null);
+    if (day === null) { for (var dd = 6; dd >= 0; dd--) { if (isFree(dd)) { day = dd; break; } } }
+    if (day !== null) { claim(day, i); quietGuard.push(day); }
   });
 
-  // 2. Hard sessions -> spaced days: Tue(1), Thu(3), Sat(5), then Wed(2)/Fri(4).
-  const hardPref = [1, 3, 5, 2, 4, 0, 6];
+  // 2. Hard sessions -> pick the free day that maximises the minimum
+  //    distance to any already-placed hard/long day. Preference order
+  //    among ties favours the classic Mon/Wed/Fri spacing.
+  const hardTiePref = [2, 4, 0, 1, 3, 5, 6]; // Wed, Fri, Mon, Tue, Thu, Sat, Sun
   hardIdx.forEach(function (i) {
-    const d = firstFree(hardPref);
-    if (d !== null) assigned[i] = take(d);
+    var best = null, bestGap = -1, bestPref = 99;
+    for (var day = 0; day <= 6; day++) {
+      if (!isFree(day)) continue;
+      var minDist = 7;
+      quietGuard.forEach(function (g) { var d = Math.abs(g - day); if (d < minDist) minDist = d; });
+      if (quietGuard.length === 0) minDist = 7;
+      var pref = hardTiePref.indexOf(day);
+      if (minDist > bestGap || (minDist === bestGap && pref < bestPref)) {
+        bestGap = minDist; best = day; bestPref = pref;
+      }
+    }
+    if (best !== null) { claim(best, i); quietGuard.push(best); }
   });
 
-  // 3. Easy/moderate -> remaining preferred days: Mon, Wed, Fri, Sat, Tue, Thu, Sun.
-  const easyPref = [0, 2, 4, 5, 1, 3, 6];
+  // 3. Easy/moderate -> fill the largest remaining gaps, preferring days
+  //    that sit between/after hard days (active recovery). Simple: take
+  //    free days in a balanced order.
+  const easyPref = [0, 2, 4, 6, 1, 3, 5]; // Mon, Wed, Fri, Sun, Tue, Thu, Sat
   easyIdx.forEach(function (i) {
-    const d = firstFree(easyPref);
-    if (d !== null) assigned[i] = take(d);
+    var day = null;
+    for (var k = 0; k < easyPref.length; k++) { if (isFree(easyPref[k])) { day = easyPref[k]; break; } }
+    if (day === null) { for (var dd = 0; dd <= 6; dd++) { if (isFree(dd)) { day = dd; break; } } }
+    if (day !== null) claim(day, i);
   });
 
-  // 4. Any still unassigned (more sessions than days): fill any free day.
+  // 4. Safety net.
+  for (var s = 0; s < n; s++) {
+    if (assigned[s] === null) {
+      for (var d2 = 0; d2 <= 6; d2++) { if (isFree(d2)) { claim(d2, s); break; } }
+      if (assigned[s] === null) assigned[s] = s % 7;
+    }
+  }
+
+  return assigned;
+}
+
+/* Legacy template-based fallback kept for reference (unused). */
+function placeDaysTemplate(sessionStyleIds) {
+  const n = sessionStyleIds.length;
+  if (n === 0) return [];
+  const TEMPLATES = {
+    1: [2], 2: [1, 4], 3: [1, 3, 5], 4: [0, 2, 4, 6],
+    5: [0, 1, 3, 5, 6], 6: [0, 1, 3, 4, 5, 6], 7: [0, 1, 2, 3, 4, 5, 6]
+  };
+  const slots = (TEMPLATES[Math.min(7, n)] || [1, 3, 5]).slice();
+
+  const longIdx = [];
+  const hardIdx = [];
+  const easyIdx = [];
+  sessionStyleIds.forEach(function (id, i) {
+    const c = categoryOf(id);
+    if (c.long) longIdx.push(i);
+    else if (isHard(id)) hardIdx.push(i);
+    else easyIdx.push(i);
+  });
+
+  const assigned = new Array(n).fill(null);
+  const usedSlots = {};
+
+  function claim(slotValue, sessionIndex) {
+    assigned[sessionIndex] = slotValue;
+    usedSlots[slotValue] = true;
+  }
+  function remainingSlots() {
+    return slots.filter(function (s) { return !usedSlots[s]; });
+  }
+
+  // 1. Long run -> the latest available slot (weekend-most).
+  longIdx.forEach(function (i) {
+    const rem = remainingSlots();
+    if (!rem.length) return;
+    claim(rem[rem.length - 1], i);
+  });
+
+  // 2. Hard sessions -> choose slots that maximise spacing from OTHER
+  //    hard sessions (and the long run), so two hard days never sit
+  //    back to back. Greedy: each hard session takes the remaining slot
+  //    whose nearest hard/long neighbour is furthest away.
+  const hardOrLongSlots = [];
+  longIdx.forEach(function (i) { if (assigned[i] !== null) hardOrLongSlots.push(assigned[i]); });
+
+  hardIdx.forEach(function (i) {
+    const rem = remainingSlots();
+    if (!rem.length) return;
+    let best = rem[0];
+    let bestGap = -1;
+    rem.forEach(function (s) {
+      let minDist = 7;
+      hardOrLongSlots.forEach(function (u) {
+        const dist = Math.abs(u - s);
+        if (dist < minDist) minDist = dist;
+      });
+      if (hardOrLongSlots.length === 0) minDist = 7;
+      // Tie-break toward earlier-week slots for a stable layout.
+      if (minDist > bestGap || (minDist === bestGap && s < best)) {
+        bestGap = minDist; best = s;
+      }
+    });
+    claim(best, i);
+    hardOrLongSlots.push(best);
+  });
+
+  // 3. Easy/moderate -> remaining slots in order.
+  easyIdx.forEach(function (i) {
+    const rem = remainingSlots();
+    if (!rem.length) return;
+    claim(rem[0], i);
+  });
+
+  // 4. Safety net: anything still unassigned gets any free day.
   for (let i = 0; i < n; i++) {
     if (assigned[i] === null) {
-      const d = firstFree([0, 1, 2, 3, 4, 5, 6]);
-      assigned[i] = d !== null ? take(d) : i % 7;
+      const rem = remainingSlots();
+      if (rem.length) claim(rem[0], i);
+      else {
+        for (let dd = 0; dd < 7; dd++) {
+          if (!usedSlots[dd]) { claim(dd, i); break; }
+        }
+        if (assigned[i] === null) assigned[i] = i % 7;
+      }
     }
   }
 
@@ -384,15 +497,31 @@ function generatePlan(opts) {
       wp.phaseLength >= 4 &&
       (wp.indexInPhase + 1) % 4 === 0;
 
-    // Progression level rises across the whole plan (0..n).
-    const progressFraction = weeks > 1 ? w / (weeks - 1) : 0;
+    // Is this the final week of the whole plan (race week)?
+    const isRaceWeek = (w === weeks - 1);
+    // Is this the last week within the taper phase?
+    const isLastTaperWeek = wp.phase === 'taper' && (wp.indexInPhase === wp.phaseLength - 1);
+
+    // Progression peaks at the END of the Specific phase, then the
+    // taper deliberately steps down. So progress is measured against
+    // the last non-taper week, not the whole plan length. This keeps
+    // the build monotonic and makes the taper read as a clear easing.
+    let lastBuildWeek = weeks - 1;
+    for (let k = weeks - 1; k >= 0; k--) {
+      if (weekPhases[k].phase !== 'taper') { lastBuildWeek = k; break; }
+    }
+    const progressFraction = lastBuildWeek > 0
+      ? Math.min(1, w / lastBuildWeek)
+      : 0;
 
     // Choose which styles fill this week's sessions.
     const weekSessions = wp.phase === 'taper'
-      ? Math.max(1, sessions - 1)            // taper trims one session
-      : (isDownWeek ? Math.max(1, sessions - 1) : sessions);
+      ? Math.max(2, sessions - 1)            // taper trims one session (min 2)
+      : (isDownWeek ? Math.max(2, sessions - 1) : sessions);
 
-    const styleSeq = chooseStylesForWeek(wp.phase, styleIds, suitability, weekSessions, w);
+    // Final taper week is easy-led: at most one sharpener.
+    const hardCapOverride = isLastTaperWeek ? 1 : null;
+    const styleSeq = chooseStylesForWeek(wp.phase, styleIds, suitability, weekSessions, w, hardCapOverride);
     const dayAssignments = placeDays(styleSeq);
 
     // Build session objects.
@@ -411,10 +540,17 @@ function generatePlan(opts) {
 
       const meta = workoutName ? metaFor(workoutName) : { steps: ['session'], unit: '', load: 3 };
       // Progression: pick a step in the workout's ladder based on how
-      // far through the plan we are, eased back on down weeks and taper.
+      // far through the build we are. Down weeks ease back one notch.
+      // The taper steps down progressively toward race day.
       let stepIdx = Math.round(progressFraction * (meta.steps.length - 1));
       if (isDownWeek && stepIdx > 0) stepIdx -= 1;
-      if (wp.phase === 'taper') stepIdx = Math.max(0, Math.floor(meta.steps.length * 0.4));
+      if (wp.phase === 'taper') {
+        // Step down through the taper: earlier taper weeks hold more,
+        // the final week drops to an easy sharpener level.
+        var taperPos = wp.phaseLength > 1 ? wp.indexInPhase / (wp.phaseLength - 1) : 1;
+        var ceiling = Math.round((meta.steps.length - 1) * (0.5 - 0.3 * taperPos));
+        stepIdx = Math.max(0, Math.min(stepIdx, ceiling));
+      }
       stepIdx = Math.max(0, Math.min(meta.steps.length - 1, stepIdx));
 
       const style = (opts.styleLookup && opts.styleLookup(sid)) || { name: sid, primary: '' };

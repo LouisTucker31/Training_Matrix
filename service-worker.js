@@ -5,7 +5,7 @@
    index.html and manifest.json (same relative paths, same names).
    ============================================================ */
 
-const CACHE_VERSION = 'training-matrix-v3';
+const CACHE_VERSION = 'training-matrix-v4';
 
 const PRECACHE_URLS = [
   './',
